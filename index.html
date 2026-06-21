@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DTG-1 · Dual-Tone Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1418;
+    --panel:#141D22;
+    --panel-2:#0B1115;
+    --hair:#243036;
+    --hair-soft:#1B252B;
+    --txt:#E7EDEF;
+    --txt-dim:#9aa8af;
+    --txt-mut:#74858C;
+    --ch1:#F2A93B;          /* LEFT  — warm amber */
+    --ch1-dim:#7a5a23;
+    --ch2:#35C9C0;          /* RIGHT — cool cyan  */
+    --ch2-dim:#1e6360;
+    --scope-bg:#070B0D;
+    --grid:rgba(120,160,170,.10);
+    --grid-2:rgba(120,160,170,.045);
+    --focus:#9fd8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, #16242b 0%, var(--bg) 55%) fixed,
+      var(--bg);
+    color:var(--txt);
+    font-family:"Space Grotesk", system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:22px 16px 40px;
+    min-height:100vh;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--txt-mut);margin:0 0 6px;
+  }
+  h1{font-size:26px;font-weight:700;letter-spacing:-.01em;margin:0;line-height:1}
+  .model{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.15em;
+    color:var(--txt-mut);border:1px solid var(--hair);border-radius:5px;
+    padding:5px 8px;white-space:nowrap;
+  }
+
+  /* ---------- scope ---------- */
+  .scope{
+    position:relative;border:1px solid var(--hair);border-radius:12px;
+    background:var(--scope-bg);overflow:hidden;
+    box-shadow:inset 0 0 60px rgba(0,0,0,.6);
+  }
+  .scope canvas{display:block;width:100%;height:200px}
+  .scope .corner{
+    position:absolute;top:10px;font-family:"IBM Plex Mono",monospace;font-size:10px;
+    letter-spacing:.12em;color:var(--txt-mut);pointer-events:none;
+  }
+  .scope .corner.left{left:12px}
+  .scope .corner.right{right:12px;text-align:right}
+  .timebase{position:absolute;bottom:9px;left:12px;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.1em;color:var(--txt-mut);pointer-events:none}
+
+  /* ---------- transport ---------- */
+  .transport{
+    display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;
+    margin-top:14px;
+  }
+  .play{
+    appearance:none;cursor:pointer;border:none;border-radius:10px;
+    background:linear-gradient(180deg,#2a3942,#1b262c);
+    color:var(--txt);font-family:"Space Grotesk";font-weight:600;font-size:15px;
+    padding:14px 22px;display:flex;align-items:center;gap:10px;
+    box-shadow:0 1px 0 #36474f inset, 0 6px 16px rgba(0,0,0,.4);
+    transition:transform .06s ease, background .2s ease;min-width:118px;justify-content:center;
+  }
+  .play:active{transform:translateY(1px)}
+  .play.on{background:linear-gradient(180deg,#3a2a1a,#2a1d11);box-shadow:0 1px 0 #5a4324 inset,0 0 0 1px var(--ch1-dim),0 6px 18px rgba(242,169,59,.18)}
+  .play .dot{width:10px;height:10px;border-radius:50%;background:var(--txt-mut);transition:background .2s}
+  .play.on .dot{background:var(--ch1);box-shadow:0 0 10px var(--ch1)}
+
+  .output{display:flex;align-items:center;gap:10px;
+    border:1px solid var(--hair);border-radius:10px;padding:0 14px;height:52px;background:var(--panel)}
+  .output label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--txt-mut);white-space:nowrap}
+  .output .val{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--txt);width:34px;text-align:right}
+
+  /* ---------- segmented ---------- */
+  .row{margin-top:12px}
+  .row-label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--txt-mut);margin:0 0 7px 2px}
+  .seg{display:flex;border:1px solid var(--hair);border-radius:10px;overflow:hidden;background:var(--panel-2)}
+  .seg button{
+    flex:1;appearance:none;cursor:pointer;border:none;background:transparent;
+    color:var(--txt-mut);font-family:"Space Grotesk";font-weight:500;font-size:13.5px;
+    padding:11px 6px;transition:background .15s, color .15s;border-right:1px solid var(--hair-soft);
+  }
+  .seg button:last-child{border-right:none}
+  .seg button[aria-pressed="true"]{background:#1d282e;color:var(--txt)}
+  .seg.mode button[aria-pressed="true"]{background:#22303a;color:var(--txt);box-shadow:inset 0 -2px 0 var(--focus)}
+
+  /* ---------- status readout ---------- */
+  .status{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;
+  }
+  .chip{
+    border:1px solid var(--hair);border-radius:12px;background:var(--panel);
+    padding:14px 16px;position:relative;overflow:hidden;
+  }
+  .chip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  .chip.l::before{background:var(--ch1)}
+  .chip.r::before{background:var(--ch2)}
+  .chip .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--txt-mut)}
+  .chip.l .tag b{color:var(--ch1)}
+  .chip.r .tag b{color:var(--ch2)}
+  .chip .read{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:30px;
+    line-height:1.05;margin-top:6px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .chip .unit{font-size:14px;color:var(--txt-mut);margin-left:4px;font-weight:500}
+  .chip.l .read{color:var(--ch1)}
+  .chip.r .read{color:var(--ch2)}
+  .chip.muted{opacity:.42}
+  .beatline{
+    grid-column:1 / -1;font-family:"IBM Plex Mono",monospace;font-size:12px;
+    color:var(--txt-mut);text-align:center;letter-spacing:.06em;margin-top:-2px;
+  }
+  .beatline b{color:var(--txt)}
+
+  /* ---------- controls ---------- */
+  .controls{margin-top:16px}
+  .ctl{
+    border:1px solid var(--hair);border-radius:12px;background:var(--panel);
+    padding:15px 16px 16px;margin-bottom:12px;
+  }
+  .ctl-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .ctl-head .name{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--txt-mut)}
+  .ctl.l .name b{color:var(--ch1)}
+  .ctl.r .name b{color:var(--ch2)}
+  .slider-row{display:flex;align-items:center;gap:12px}
+  .nudge{
+    appearance:none;cursor:pointer;width:40px;height:40px;flex:none;border-radius:9px;
+    border:1px solid var(--hair);background:var(--panel-2);color:var(--txt);
+    font-family:"IBM Plex Mono",monospace;font-size:20px;line-height:1;
+    display:flex;align-items:center;justify-content:center;transition:background .12s,transform .06s}
+  .nudge:active{transform:translateY(1px);background:#1d282e}
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:38px;background:transparent;cursor:pointer;margin:0
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;background:var(--hair)}
+  input[type=range]::-moz-range-track{height:6px;border-radius:6px;background:var(--hair)}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;
+    margin-top:-8px;background:var(--txt);border:3px solid var(--panel-2);
+    box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;border:3px solid var(--panel-2);background:var(--txt)}
+  input.ch1::-webkit-slider-thumb{background:var(--ch1);box-shadow:0 0 12px var(--ch1-dim)}
+  input.ch1::-moz-range-thumb{background:var(--ch1)}
+  input.ch2::-webkit-slider-thumb{background:var(--ch2);box-shadow:0 0 12px var(--ch2-dim)}
+  input.ch2::-moz-range-thumb{background:var(--ch2)}
+  input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--focus);outline-offset:2px}
+
+  .mute{
+    appearance:none;cursor:pointer;border:1px solid var(--hair);border-radius:8px;
+    background:var(--panel-2);color:var(--txt-mut);font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:7px 11px;transition:.15s}
+  .mute[aria-pressed="true"]{color:var(--txt);border-color:var(--txt-mut)}
+  .mute.l[aria-pressed="false"]{border-color:var(--ch1-dim);color:var(--ch1)}
+  .mute.r[aria-pressed="false"]{border-color:var(--ch2-dim);color:var(--ch2)}
+
+  .help{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;line-height:1.7;color:var(--txt-mut);
+    border-top:1px solid var(--hair-soft);margin-top:22px;padding-top:16px;letter-spacing:.02em
+  }
+  .help b{color:var(--txt)}
+
+  .hidden{display:none !important}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:4px}
+
+  @media (max-width:560px){
+    h1{font-size:22px}
+    .scope canvas{height:170px}
+    .chip .read{font-size:26px}
+    .transport{grid-template-columns:1fr}
+    .output{height:48px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="eyebrow">Per-ear frequency · stereo output</p>
+      <h1>Dual-Tone Generator</h1>
+    </div>
+    <span class="model">DTG-1</span>
+  </header>
+
+  <!-- HERO: live dual-trace scope -->
+  <div class="scope">
+    <canvas id="scope"></canvas>
+    <span class="corner left" id="lblL">CH 1 · L</span>
+    <span class="corner right" id="lblR">R · CH 2</span>
+    <span class="timebase" id="timebase">— —</span>
+  </div>
+
+  <!-- transport -->
+  <div class="transport">
+    <button class="play" id="play" aria-pressed="false">
+      <span class="dot"></span><span id="playTxt">Play</span>
+    </button>
+    <div class="output">
+      <label for="vol">Output</label>
+      <input type="range" id="vol" min="0" max="100" value="20" aria-label="Output volume">
+      <span class="val" id="volVal">20%</span>
+    </div>
+  </div>
+
+  <!-- waveform -->
+  <div class="row">
+    <p class="row-label">Waveform</p>
+    <div class="seg" id="wave" role="group" aria-label="Waveform">
+      <button data-w="sine" aria-pressed="true">Sine</button>
+      <button data-w="square" aria-pressed="false">Square</button>
+      <button data-w="sawtooth" aria-pressed="false">Saw</button>
+      <button data-w="triangle" aria-pressed="false">Triangle</button>
+    </div>
+  </div>
+
+  <!-- mode -->
+  <div class="row">
+    <p class="row-label">Mode</p>
+    <div class="seg mode" id="mode" role="group" aria-label="Mode">
+      <button data-m="independent" aria-pressed="true">Independent L / R</button>
+      <button data-m="binaural" aria-pressed="false">Binaural beat</button>
+    </div>
+  </div>
+
+  <!-- status readouts -->
+  <div class="status">
+    <div class="chip l" id="chipL">
+      <div class="tag"><b>CH 1</b> · LEFT EAR</div>
+      <div class="read"><span id="readL">200</span><span class="unit">Hz</span></div>
+    </div>
+    <div class="chip r" id="chipR">
+      <div class="tag"><b>CH 2</b> · RIGHT EAR</div>
+      <div class="read"><span id="readR">210</span><span class="unit">Hz</span></div>
+    </div>
+    <div class="beatline" id="beatline">Perceived beat <b><span id="beatVal">10</span> Hz</b></div>
+  </div>
+
+  <!-- CONTROLS: independent -->
+  <div class="controls" id="ctlIndependent">
+    <div class="ctl l">
+      <div class="ctl-head">
+        <span class="name"><b>CH 1</b> · LEFT</span>
+        <button class="mute l" id="muteL" aria-pressed="false">On</button>
+      </div>
+      <div class="slider-row">
+        <button class="nudge" id="downL" aria-label="Left frequency down 1 Hz">−</button>
+        <input type="range" class="ch1" id="freqL" min="0" max="1000" value="500" aria-label="Left ear frequency">
+        <button class="nudge" id="upL" aria-label="Left frequency up 1 Hz">+</button>
+      </div>
+    </div>
+    <div class="ctl r">
+      <div class="ctl-head">
+        <span class="name"><b>CH 2</b> · RIGHT</span>
+        <button class="mute r" id="muteR" aria-pressed="false">On</button>
+      </div>
+      <div class="slider-row">
+        <button class="nudge" id="downR" aria-label="Right frequency down 1 Hz">−</button>
+        <input type="range" class="ch2" id="freqR" min="0" max="1000" value="510" aria-label="Right ear frequency">
+        <button class="nudge" id="upR" aria-label="Right frequency up 1 Hz">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLS: binaural -->
+  <div class="controls hidden" id="ctlBinaural">
+    <div class="ctl">
+      <div class="ctl-head"><span class="name">Base frequency · both ears</span><span class="name" id="baseEcho">200 Hz</span></div>
+      <div class="slider-row">
+        <button class="nudge" id="downBase" aria-label="Base down 1 Hz">−</button>
+        <input type="range" id="base" min="0" max="1000" value="500" aria-label="Base frequency">
+        <button class="nudge" id="upBase" aria-label="Base up 1 Hz">+</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <div class="ctl-head"><span class="name">Beat · right minus left</span><span class="name" id="beatEcho">10.0 Hz</span></div>
+      <div class="slider-row">
+        <button class="nudge" id="downBeat" aria-label="Beat down 0.1 Hz">−</button>
+        <input type="range" id="beat" min="1" max="400" value="100" aria-label="Beat frequency">
+        <button class="nudge" id="upBeat" aria-label="Beat up 0.1 Hz">+</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="help">
+    <b>Use headphones.</b> The effect needs the left and right channels kept apart — speakers blend them in the air.<br>
+    <b>Bluetooth note:</b> wireless codecs add a little latency and can slightly shift phase between ears. Fine for listening; use wired headphones if you need exact phase alignment.<br>
+    Range 0.1–2000 Hz. Slider for big jumps; − / + step finely (0.1 Hz under 10 Hz, 1 Hz mid, 10 Hz high). Beat steps 0.1 Hz.<br>
+    A tone (carrier) under ~20 Hz is below hearing — useful as the beat or for driving a transducer, not for listening.
+  </p>
+
+</div>
+
+<script>
+"use strict";
+(function(){
+  const FMIN=0.1, FMAX=2000, SLIDER_MAX=1000;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // log mapping between slider position (0..1000) and frequency (0.1..2000)
+  const posToFreq = p => FMIN * Math.pow(FMAX/FMIN, p/SLIDER_MAX);
+  const freqToPos = f => Math.round(SLIDER_MAX * Math.log(f/FMIN)/Math.log(FMAX/FMIN));
+  const clampF = f => Math.min(FMAX, Math.max(FMIN, f));
+  // carrier tuning: 0.1 Hz resolution under 10 Hz, whole Hz above
+  const quantize = f => f < 10 ? Math.round(f*10)/10 : Math.round(f);
+  // display: round to 0.1 Hz, drop a trailing .0
+  const fmtFreq  = f => { const r = Math.round(f*10)/10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
+  // nudge size scales with magnitude
+  const stepFor  = f => f < 10 ? 0.1 : (f < 1000 ? 1 : 10);
+
+  const state = {
+    playing:false, mode:'independent', waveform:'sine',
+    freqL:200, freqR:210, base:200, beat:10,
+    volume:0.20, muteL:false, muteR:false
+  };
+
+  // ----- Web Audio graph (built on first Play) -----
+  let actx=null, oscL=null, oscR=null, gL=null, gR=null, panL=null, panR=null, master=null, suspendTimer=null;
+
+  function buildAudio(){
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    master = actx.createGain(); master.gain.value = 0;
+    master.connect(actx.destination);
+
+    oscL = actx.createOscillator(); gL = actx.createGain(); panL = actx.createStereoPanner();
+    oscR = actx.createOscillator(); gR = actx.createGain(); panR = actx.createStereoPanner();
+
+    panL.pan.value = -1; panR.pan.value = 1;
+    oscL.type = state.waveform; oscR.type = state.waveform;
+    oscL.frequency.value = state.freqL; oscR.frequency.value = state.freqR;
+    gL.gain.value = state.muteL ? 0 : 0.5;
+    gR.gain.value = state.muteR ? 0 : 0.5;
+
+    oscL.connect(gL).connect(panL).connect(master);
+    oscR.connect(gR).connect(panR).connect(master);
+    oscL.start(); oscR.start();
+  }
+
+  function rampMaster(target){
+    const t = actx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(target, t + 0.06);
+  }
+  function setOscFreq(node, f){
+    if(!actx) return;
+    node.frequency.setTargetAtTime(f, actx.currentTime, 0.02);
+  }
+  function setChannelGain(node, muted){
+    if(!actx) return;
+    node.gain.setTargetAtTime(muted?0:0.5, actx.currentTime, 0.02);
+  }
+
+  async function play(){
+    if(!actx) buildAudio();
+    if(suspendTimer){clearTimeout(suspendTimer); suspendTimer=null;}
+    if(actx.state==='suspended') await actx.resume();
+    state.playing=true;
+    rampMaster(state.volume);
+    setPlayUI();
+  }
+  function stop(){
+    state.playing=false;
+    if(actx){
+      rampMaster(0);
+      suspendTimer=setTimeout(()=>{ if(actx && !state.playing) actx.suspend(); }, 140);
+    }
+    setPlayUI();
+  }
+
+  // ----- derive frequencies from mode -----
+  function syncFreqs(){
+    if(state.mode==='binaural'){
+      state.freqL = clampF(state.base);
+      state.freqR = clampF(state.base + state.beat);
+    }
+    if(actx){
+      setOscFreq(oscL, state.freqL);
+      setOscFreq(oscR, state.freqR);
+    }
+    renderReadouts();
+  }
+
+  // ===== DOM =====
+  const $ = id => document.getElementById(id);
+  const playBtn=$('play'), playTxt=$('playTxt');
+  const vol=$('vol'), volVal=$('volVal');
+  const waveSeg=$('wave'), modeSeg=$('mode');
+  const ctlInd=$('ctlIndependent'), ctlBin=$('ctlBinaural');
+  const freqLsl=$('freqL'), freqRsl=$('freqR'), baseSl=$('base'), beatSl=$('beat');
+  const readL=$('readL'), readR=$('readR'), beatVal=$('beatVal'), beatline=$('beatline');
+  const chipL=$('chipL'), chipR=$('chipR'), muteLb=$('muteL'), muteRb=$('muteR');
+  const baseEcho=$('baseEcho'), beatEcho=$('beatEcho'), timebase=$('timebase');
+
+  function setPlayUI(){
+    playBtn.setAttribute('aria-pressed', String(state.playing));
+    playBtn.classList.toggle('on', state.playing);
+    playTxt.textContent = state.playing ? 'Stop' : 'Play';
+  }
+
+  function renderReadouts(){
+    readL.textContent = fmtFreq(state.freqL);
+    readR.textContent = fmtFreq(state.freqR);
+    const beat = Math.abs(state.freqR - state.freqL);
+    beatVal.textContent = beat.toFixed(beat<10?1:0);
+    chipL.classList.toggle('muted', state.muteL && state.mode==='independent');
+    chipR.classList.toggle('muted', state.muteR && state.mode==='independent');
+    if(state.mode==='binaural'){
+      baseEcho.textContent = fmtFreq(state.base)+' Hz';
+      beatEcho.textContent = state.beat.toFixed(1)+' Hz';
+    }
+  }
+
+  // ---- transport ----
+  playBtn.addEventListener('click', ()=> state.playing ? stop() : play());
+  vol.addEventListener('input', ()=>{
+    state.volume = vol.value/100;
+    volVal.textContent = vol.value+'%';
+    if(actx && state.playing) master.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
+  });
+
+  // ---- waveform ----
+  waveSeg.addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    state.waveform=b.dataset.w;
+    [...waveSeg.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+    if(actx){ oscL.type=state.waveform; oscR.type=state.waveform; }
+  });
+
+  // ---- mode ----
+  modeSeg.addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    state.mode=b.dataset.m;
+    [...modeSeg.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+    const bin = state.mode==='binaural';
+    ctlBin.classList.toggle('hidden', !bin);
+    ctlInd.classList.toggle('hidden', bin);
+    beatline.style.display = bin ? '' : 'none';
+    if(bin){ state.muteL=false; state.muteR=false; setChannelGain(gL,false); setChannelGain(gR,false); }
+    syncFreqs();
+  });
+
+  // ---- independent sliders + nudge ----
+  freqLsl.addEventListener('input', ()=>{ state.freqL=quantize(posToFreq(+freqLsl.value)); syncFreqs(); });
+  freqRsl.addEventListener('input', ()=>{ state.freqR=quantize(posToFreq(+freqRsl.value)); syncFreqs(); });
+  function nudge(which, dir){
+    if(which==='L'){ state.freqL=quantize(clampF(state.freqL + dir*stepFor(state.freqL))); freqLsl.value=freqToPos(state.freqL); }
+    else{ state.freqR=quantize(clampF(state.freqR + dir*stepFor(state.freqR))); freqRsl.value=freqToPos(state.freqR); }
+    syncFreqs();
+  }
+  $('downL').addEventListener('click',()=>nudge('L',-1));
+  $('upL').addEventListener('click',()=>nudge('L',1));
+  $('downR').addEventListener('click',()=>nudge('R',-1));
+  $('upR').addEventListener('click',()=>nudge('R',1));
+
+  muteLb.addEventListener('click',()=>{ state.muteL=!state.muteL; muteLb.setAttribute('aria-pressed',String(state.muteL)); muteLb.textContent=state.muteL?'Off':'On'; setChannelGain(gL,state.muteL); renderReadouts(); });
+  muteRb.addEventListener('click',()=>{ state.muteR=!state.muteR; muteRb.setAttribute('aria-pressed',String(state.muteR)); muteRb.textContent=state.muteR?'Off':'On'; setChannelGain(gR,state.muteR); renderReadouts(); });
+
+  // ---- binaural base/beat ----
+  baseSl.addEventListener('input', ()=>{ state.base=quantize(posToFreq(+baseSl.value)); syncFreqs(); });
+  beatSl.addEventListener('input', ()=>{ state.beat=(+beatSl.value)/10; syncFreqs(); });   // slider 1..400 -> 0.1..40 Hz
+  $('downBase').addEventListener('click',()=>{ state.base=quantize(clampF(state.base - stepFor(state.base))); baseSl.value=freqToPos(state.base); syncFreqs(); });
+  $('upBase').addEventListener('click',()=>{ state.base=quantize(clampF(state.base + stepFor(state.base))); baseSl.value=freqToPos(state.base); syncFreqs(); });
+  $('downBeat').addEventListener('click',()=>{ state.beat=Math.max(0.1, Math.round((state.beat-0.1)*10)/10); beatSl.value=state.beat*10; syncFreqs(); });
+  $('upBeat').addEventListener('click',()=>{ state.beat=Math.min(40, Math.round((state.beat+0.1)*10)/10); beatSl.value=state.beat*10; syncFreqs(); });
+
+  // init slider positions from default freqs
+  freqLsl.value=freqToPos(state.freqL);
+  freqRsl.value=freqToPos(state.freqR);
+  baseSl.value=freqToPos(state.base);
+  beatSl.value=state.beat*10;
+  beatline.style.display='none';
+  renderReadouts();
+
+  // ===== oscilloscope rendering =====
+  const cv=$('scope'); const cx=cv.getContext('2d');
+  let W=0,H=0,dpr=1;
+  function resize(){
+    dpr=Math.min(window.devicePixelRatio||1,2);
+    const r=cv.getBoundingClientRect();
+    W=r.width; H=r.height;
+    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+    cx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  function waveFn(type, ph){ // ph in cycles
+    const x = ph - Math.floor(ph);
+    switch(type){
+      case 'square':   return x<0.5?1:-1;
+      case 'sawtooth': return 2*x-1;
+      case 'triangle': return 4*Math.abs(x-0.5)-1;
+      default:         return Math.sin(2*Math.PI*x);
+    }
+  }
+  function drawTrace(freq, color, t, alpha){
+    const mid=H/2, amp=H*0.32;
+    cx.beginPath();
+    for(let px=0; px<=W; px++){
+      const tt = (px/W)*window.__win + t;       // seconds across the screen
+      const y = mid - amp*waveFn(state.waveform, freq*tt);
+      px===0?cx.moveTo(px,y):cx.lineTo(px,y);
+    }
+    cx.globalAlpha=alpha;
+    cx.lineWidth=1.8; cx.strokeStyle=color;
+    cx.shadowColor=color; cx.shadowBlur=6;
+    cx.stroke();
+    cx.shadowBlur=0; cx.globalAlpha=1;
+  }
+  function grid(){
+    cx.clearRect(0,0,W,H);
+    cx.lineWidth=1;
+    cx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid-2');
+    const stepX=W/12, stepY=H/6;
+    cx.beginPath();
+    for(let i=1;i<12;i++){ cx.moveTo(i*stepX,0); cx.lineTo(i*stepX,H); }
+    for(let j=1;j<6;j++){ cx.moveTo(0,j*stepY); cx.lineTo(W,j*stepY); }
+    cx.stroke();
+    cx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--grid');
+    cx.beginPath(); cx.moveTo(0,H/2); cx.lineTo(W,H/2); cx.stroke();
+  }
+
+  let t0=performance.now();
+  function frame(now){
+    // visible window = ~3 cycles of the lowest active frequency, kept readable
+    const active=[];
+    if(!(state.mode==='independent'&&state.muteL)) active.push(state.freqL);
+    if(!(state.mode==='independent'&&state.muteR)) active.push(state.freqR);
+    const lo = active.length? Math.min(...active) : 200;
+    window.__win = Math.min(4, Math.max(0.002, 3/lo));   // seconds
+
+    const t = reduceMotion ? 0 : (now-t0)/1000;             // freeze if reduced motion
+    grid();
+    const c1=getComputedStyle(document.documentElement).getPropertyValue('--ch1').trim();
+    const c2=getComputedStyle(document.documentElement).getPropertyValue('--ch2').trim();
+    if(!(state.mode==='independent'&&state.muteR)) drawTrace(state.freqR, c2, t, 0.95);
+    if(!(state.mode==='independent'&&state.muteL)) drawTrace(state.freqL, c1, t, 0.95);
+
+    timebase.textContent = window.__win>=1
+      ? window.__win.toFixed(1)+' s/screen'
+      : (window.__win*1000).toFixed(window.__win<0.01?1:0)+' ms/screen';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // keyboard: space toggles play
+  document.addEventListener('keydown', e=>{
+    if(e.code==='Space' && e.target.tagName!=='INPUT' && e.target.tagName!=='BUTTON'){
+      e.preventDefault(); state.playing?stop():play();
+    }
+  });
+})();
+</script>
+</body>
+</html>
