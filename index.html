@@ -169,6 +169,23 @@
   input.ch2::-moz-range-thumb{background:var(--ch2)}
   input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid var(--focus);outline-offset:2px}
 
+  /* typeable frequency entry */
+  .read input.read-num{
+    font:inherit;color:inherit;background:transparent;border:none;
+    border-bottom:1px solid var(--hair);padding:0 0 1px;margin:0;
+    width:5.2ch;text-align:left;outline:none;cursor:text;
+    font-variant-numeric:tabular-nums;-moz-appearance:textfield;
+  }
+  .read input.read-num:focus{border-bottom:2px solid currentColor}
+  .read input.read-num:read-only{border-bottom-color:transparent;cursor:default;opacity:.85}
+  .echo-num{
+    font:inherit;color:inherit;background:transparent;border:none;
+    border-bottom:1px solid var(--hair);padding:2px 0;margin:0;
+    width:4.2ch;text-align:right;outline:none;cursor:text;
+    font-variant-numeric:tabular-nums;-moz-appearance:textfield;
+  }
+  .echo-num:focus{border-bottom:1.5px solid currentColor;color:var(--txt)}
+
   .mute{
     appearance:none;cursor:pointer;border:1px solid var(--hair);border-radius:8px;
     background:var(--panel-2);color:var(--txt-mut);font-family:"IBM Plex Mono",monospace;
@@ -250,11 +267,11 @@
   <div class="status">
     <div class="chip l" id="chipL">
       <div class="tag"><b>CH 1</b> · LEFT EAR</div>
-      <div class="read"><span id="readL">200</span><span class="unit">Hz</span></div>
+      <div class="read"><input id="readL" class="read-num" type="text" inputmode="decimal" value="200" aria-label="Left ear frequency in hertz — type a value" title="Type a frequency"><span class="unit">Hz</span></div>
     </div>
     <div class="chip r" id="chipR">
       <div class="tag"><b>CH 2</b> · RIGHT EAR</div>
-      <div class="read"><span id="readR">210</span><span class="unit">Hz</span></div>
+      <div class="read"><input id="readR" class="read-num" type="text" inputmode="decimal" value="210" aria-label="Right ear frequency in hertz — type a value" title="Type a frequency"><span class="unit">Hz</span></div>
     </div>
     <div class="beatline" id="beatline">Perceived beat <b><span id="beatVal">10</span> Hz</b></div>
   </div>
@@ -288,7 +305,7 @@
   <!-- CONTROLS: binaural -->
   <div class="controls hidden" id="ctlBinaural">
     <div class="ctl">
-      <div class="ctl-head"><span class="name">Base frequency · both ears</span><span class="name" id="baseEcho">200 Hz</span></div>
+      <div class="ctl-head"><span class="name">Base frequency · both ears</span><span class="name"><input id="baseEcho" class="echo-num" type="text" inputmode="decimal" value="200" aria-label="Base frequency in hertz — type a value"> Hz</span></div>
       <div class="slider-row">
         <button class="nudge" id="downBase" aria-label="Base down 1 Hz">−</button>
         <input type="range" id="base" min="0" max="1000" value="500" aria-label="Base frequency">
@@ -296,7 +313,7 @@
       </div>
     </div>
     <div class="ctl">
-      <div class="ctl-head"><span class="name">Beat · right minus left</span><span class="name" id="beatEcho">10.0 Hz</span></div>
+      <div class="ctl-head"><span class="name">Beat · right minus left</span><span class="name"><input id="beatEcho" class="echo-num" type="text" inputmode="decimal" value="10.0" aria-label="Beat frequency in hertz — type a value"> Hz</span></div>
       <div class="slider-row">
         <button class="nudge" id="downBeat" aria-label="Beat down 0.1 Hz">−</button>
         <input type="range" id="beat" min="1" max="400" value="100" aria-label="Beat frequency">
@@ -308,6 +325,7 @@
   <p class="help">
     <b>Use headphones.</b> The effect needs the left and right channels kept apart — speakers blend them in the air.<br>
     <b>Bluetooth note:</b> wireless codecs add a little latency and can slightly shift phase between ears. Fine for listening; use wired headphones if you need exact phase alignment.<br>
+    <b>Tip:</b> tap a big frequency number (or the base / beat value) to type an exact figure — decimals work, e.g. 440.5.<br>
     Range 0.1–2000 Hz. Slider for big jumps; − / + step finely (0.1 Hz under 10 Hz, 1 Hz mid, 10 Hz high). Beat steps 0.1 Hz.<br>
     A tone (carrier) under ~20 Hz is below hearing — useful as the beat or for driving a transducer, not for listening.
   </p>
@@ -422,16 +440,14 @@
   }
 
   function renderReadouts(){
-    readL.textContent = fmtFreq(state.freqL);
-    readR.textContent = fmtFreq(state.freqR);
+    if(document.activeElement!==readL) readL.value = fmtFreq(state.freqL);
+    if(document.activeElement!==readR) readR.value = fmtFreq(state.freqR);
     const beat = Math.abs(state.freqR - state.freqL);
     beatVal.textContent = beat.toFixed(beat<10?1:0);
     chipL.classList.toggle('muted', state.muteL && state.mode==='independent');
     chipR.classList.toggle('muted', state.muteR && state.mode==='independent');
-    if(state.mode==='binaural'){
-      baseEcho.textContent = fmtFreq(state.base)+' Hz';
-      beatEcho.textContent = state.beat.toFixed(1)+' Hz';
-    }
+    if(document.activeElement!==baseEcho) baseEcho.value = fmtFreq(state.base);
+    if(document.activeElement!==beatEcho) beatEcho.value = state.beat.toFixed(1);
   }
 
   // ---- transport ----
@@ -456,6 +472,7 @@
     state.mode=b.dataset.m;
     [...modeSeg.children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
     const bin = state.mode==='binaural';
+    readL.readOnly = bin; readR.readOnly = bin;   // carriers are derived in binaural
     ctlBin.classList.toggle('hidden', !bin);
     ctlInd.classList.toggle('hidden', bin);
     beatline.style.display = bin ? '' : 'none';
@@ -486,6 +503,44 @@
   $('upBase').addEventListener('click',()=>{ state.base=quantize(clampF(state.base + stepFor(state.base))); baseSl.value=freqToPos(state.base); syncFreqs(); });
   $('downBeat').addEventListener('click',()=>{ state.beat=Math.max(0.1, Math.round((state.beat-0.1)*10)/10); beatSl.value=state.beat*10; syncFreqs(); });
   $('upBeat').addEventListener('click',()=>{ state.beat=Math.min(40, Math.round((state.beat+0.1)*10)/10); beatSl.value=state.beat*10; syncFreqs(); });
+
+  // ---- typed frequency entry ----
+  function parseFreq(str){
+    const v = parseFloat(String(str).replace(',', '.'));
+    if(!isFinite(v)) return null;
+    return clampF(Math.round(v*10)/10);          // 0.1 Hz resolution, clamped to range
+  }
+  function commitCarrier(which){
+    if(state.mode!=='independent') return;       // carriers are derived in binaural
+    const inp = which==='L'?readL:readR;
+    const v = parseFreq(inp.value);
+    if(v===null){ renderReadouts(); return; }     // invalid -> revert
+    if(which==='L'){ state.freqL=v; freqLsl.value=freqToPos(v); }
+    else{ state.freqR=v; freqRsl.value=freqToPos(v); }
+    syncFreqs();
+  }
+  function commitBase(){
+    const v = parseFreq(baseEcho.value);
+    if(v===null){ renderReadouts(); return; }
+    state.base=v; baseSl.value=freqToPos(v); syncFreqs();
+  }
+  function commitBeat(){
+    let v = parseFloat(String(beatEcho.value).replace(',', '.'));
+    if(!isFinite(v)){ renderReadouts(); return; }
+    v = Math.min(40, Math.max(0.1, Math.round(v*10)/10));
+    state.beat=v; beatSl.value=v*10; syncFreqs();
+  }
+  readL.addEventListener('change', ()=>commitCarrier('L'));
+  readR.addEventListener('change', ()=>commitCarrier('R'));
+  baseEcho.addEventListener('change', commitBase);
+  beatEcho.addEventListener('change', commitBeat);
+  [readL,readR,baseEcho,beatEcho].forEach(inp=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); inp.blur(); }       // blur fires change -> commit
+      else if(e.key==='Escape'){ e.preventDefault(); renderReadouts(); inp.blur(); }
+    });
+    inp.addEventListener('focus', ()=>{ if(!inp.readOnly) inp.select(); });
+  });
 
   // init slider positions from default freqs
   freqLsl.value=freqToPos(state.freqL);
