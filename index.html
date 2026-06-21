@@ -186,6 +186,18 @@
   }
   .echo-num:focus{border-bottom:1.5px solid currentColor;color:var(--txt)}
 
+  .preset-select{
+    width:100%;appearance:none;-webkit-appearance:none;
+    background:var(--panel-2);color:var(--txt);
+    border:1px solid var(--hair);border-radius:9px;
+    font-family:"Space Grotesk";font-size:14px;font-weight:500;
+    padding:11px 38px 11px 12px;cursor:pointer;outline:none;line-height:1.2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2374858C' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 13px center;
+  }
+  .preset-select:focus{border-color:var(--focus)}
+  .preset-select option{background:var(--panel);color:var(--txt)}
+
   .mute{
     appearance:none;cursor:pointer;border:1px solid var(--hair);border-radius:8px;
     background:var(--panel-2);color:var(--txt-mut);font-family:"IBM Plex Mono",monospace;
@@ -304,6 +316,17 @@
 
   <!-- CONTROLS: binaural -->
   <div class="controls hidden" id="ctlBinaural">
+    <div class="ctl preset-ctl">
+      <div class="ctl-head"><span class="name">Preset · beat &amp; effect</span></div>
+      <select id="preset" class="preset-select" aria-label="Beat preset and effect">
+        <option value="">Custom (set manually)</option>
+        <option value="2">Sleep — 2 Hz · delta</option>
+        <option value="6">Deep relax / meditation — 6 Hz · theta</option>
+        <option value="10" selected>Calm focus / relaxed — 10 Hz · alpha</option>
+        <option value="16">Active focus / study — 16 Hz · beta</option>
+        <option value="40">Problem solving — 40 Hz · gamma</option>
+      </select>
+    </div>
     <div class="ctl">
       <div class="ctl-head"><span class="name">Base frequency · both ears</span><span class="name"><input id="baseEcho" class="echo-num" type="text" inputmode="decimal" value="200" aria-label="Base frequency in hertz — type a value"> Hz</span></div>
       <div class="slider-row">
@@ -431,7 +454,7 @@
   const freqLsl=$('freqL'), freqRsl=$('freqR'), baseSl=$('base'), beatSl=$('beat');
   const readL=$('readL'), readR=$('readR'), beatVal=$('beatVal'), beatline=$('beatline');
   const chipL=$('chipL'), chipR=$('chipR'), muteLb=$('muteL'), muteRb=$('muteR');
-  const baseEcho=$('baseEcho'), beatEcho=$('beatEcho'), timebase=$('timebase');
+  const baseEcho=$('baseEcho'), beatEcho=$('beatEcho'), timebase=$('timebase'), presetSel=$('preset');
 
   function setPlayUI(){
     playBtn.setAttribute('aria-pressed', String(state.playing));
@@ -448,6 +471,7 @@
     chipR.classList.toggle('muted', state.muteR && state.mode==='independent');
     if(document.activeElement!==baseEcho) baseEcho.value = fmtFreq(state.base);
     if(document.activeElement!==beatEcho) beatEcho.value = state.beat.toFixed(1);
+    if(presetSel){ const v=String(state.beat); presetSel.value = ['2','6','10','16','40'].includes(v) ? v : ''; }
   }
 
   // ---- transport ----
@@ -534,6 +558,11 @@
   readR.addEventListener('change', ()=>commitCarrier('R'));
   baseEcho.addEventListener('change', commitBase);
   beatEcho.addEventListener('change', commitBeat);
+  presetSel.addEventListener('change', ()=>{
+    const v = parseFloat(presetSel.value);
+    if(!isFinite(v)) return;            // "Custom" — leave beat unchanged
+    state.beat = v; beatSl.value = v*10; syncFreqs();
+  });
   [readL,readR,baseEcho,beatEcho].forEach(inp=>{
     inp.addEventListener('keydown', e=>{
       if(e.key==='Enter'){ e.preventDefault(); inp.blur(); }       // blur fires change -> commit
