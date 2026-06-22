@@ -378,11 +378,16 @@
 
 </div>
 
+<audio id="sink" playsinline></audio>
+
 <script>
 "use strict";
 (function(){
   const FMIN=0.1, FMAX=2000, SLIDER_MAX=1000;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // background-audio support: route through a media element where the OS allows it (not iOS, which suspends web audio on lock)
+  const isIOS = /iP(hone|ad|od)/.test(navigator.platform||'') || (/Mac/.test(navigator.platform||'') && navigator.maxTouchPoints>1);
+  const useSink = (typeof MediaStream!=='undefined') && !isIOS;
 
   // log mapping between slider position (0..1000) and frequency (0.1..2000)
   const posToFreq = p => FMIN * Math.pow(FMAX/FMIN, p/SLIDER_MAX);
@@ -403,12 +408,19 @@
 
   // ----- Web Audio graph (built on first Play) -----
   let actx=null, oscL=null, oscR=null, gL=null, gR=null, panL=null, panR=null, master=null, suspendTimer=null;
-  let timerEnd=0, timerTick=null;
+  let timerEnd=0, timerTick=null, streamDest=null, directFallback=false, mediaSessionReady=false;
 
   function buildAudio(){
     actx = new (window.AudioContext||window.webkitAudioContext)();
     master = actx.createGain(); master.gain.value = 0;
-    master.connect(actx.destination);
+    if(useSink && actx.createMediaStreamDestination && sink){
+      streamDest = actx.createMediaStreamDestination();
+      master.connect(streamDest);
+      try{ sink.srcObject = streamDest.stream; }
+      catch(e){ streamDest=null; master.connect(actx.destination); }   // fallback: direct output
+    } else {
+      master.connect(actx.destination);
+    }
 
     oscL = actx.createOscillator(); gL = actx.createGain(); panL = actx.createStereoPanner();
     oscR = actx.createOscillator(); gR = actx.createGain(); panR = actx.createStereoPanner();
@@ -445,15 +457,24 @@
     if(actx.state==='suspended') await actx.resume();
     state.playing=true;
     rampMaster(state.volume);
+    if(streamDest && sink){
+      try{ await sink.play(); }
+      catch(e){ if(!directFallback){ try{ master.connect(actx.destination); directFallback=true; }catch(_){} } }
+    }
+    setupMediaSession();
+    if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing';
     setPlayUI();
     startTimer();
   }
   function stop(){
     state.playing=false;
     cancelTimer();
+    if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused';
     if(actx){
       rampMaster(0);
-      suspendTimer=setTimeout(()=>{ if(actx && !state.playing) actx.suspend(); }, 140);
+      suspendTimer=setTimeout(()=>{
+        if(actx && !state.playing){ actx.suspend(); if(sink){ try{ sink.pause(); }catch(_){} } }
+      }, 140);
     }
     setPlayUI();
   }
@@ -481,6 +502,20 @@
     timerLine.classList.add('hidden');
   }
 
+  // ----- lock-screen / background media session -----
+  function setupMediaSession(){
+    if(mediaSessionReady || !('mediaSession' in navigator)) return;
+    try{
+      if(window.MediaMetadata){
+        navigator.mediaSession.metadata = new MediaMetadata({ title:'Dual-Tone Generator', artist:'DTG-1' });
+      }
+      navigator.mediaSession.setActionHandler('play',  ()=>{ if(!state.playing) play(); });
+      navigator.mediaSession.setActionHandler('pause', ()=>{ if(state.playing) stop(); });
+      navigator.mediaSession.setActionHandler('stop',  ()=>{ if(state.playing) stop(); });
+    }catch(e){}
+    mediaSessionReady=true;
+  }
+
   // ----- derive frequencies from mode -----
   function syncFreqs(){
     if(state.mode==='binaural'){
@@ -504,7 +539,7 @@
   const readL=$('readL'), readR=$('readR'), beatVal=$('beatVal'), beatline=$('beatline');
   const chipL=$('chipL'), chipR=$('chipR'), muteLb=$('muteL'), muteRb=$('muteR');
   const baseEcho=$('baseEcho'), beatEcho=$('beatEcho'), timebase=$('timebase'), presetSel=$('preset');
-  const timerSel=$('timer'), timerLine=$('timerLine'), timerLeft=$('timerLeft');
+  const timerSel=$('timer'), timerLine=$('timerLine'), timerLeft=$('timerLeft'), sink=$('sink');
 
   function setPlayUI(){
     playBtn.setAttribute('aria-pressed', String(state.playing));
@@ -532,8 +567,7 @@
     if(actx && state.playing) master.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
   });
   timerSel.addEventListener('change', ()=>{
-    state.timerMin = parseInt(timerSel.value,10) || 0;
-    if(state.playing){ state.timerMin>0 ? startTimer() : cancelTimer(); }  // recompute or cancel mid-play
+    state.timerMin = parseInt(timerSel.value,10) || 0;   // takes effect on the next Play; a running countdown is left untouched
   });
 
   // ---- waveform ----
