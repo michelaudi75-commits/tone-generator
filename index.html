@@ -198,6 +198,12 @@
   .preset-select:focus{border-color:var(--focus)}
   .preset-select option{background:var(--panel);color:var(--txt)}
 
+  .timer-line{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;
+    color:var(--txt-mut);margin:10px 2px 0;
+  }
+  .timer-line #timerLeft{color:var(--ch1);font-weight:600;font-variant-numeric:tabular-nums}
+
   .mute{
     appearance:none;cursor:pointer;border:1px solid var(--hair);border-radius:8px;
     background:var(--panel-2);color:var(--txt-mut);font-family:"IBM Plex Mono",monospace;
@@ -253,6 +259,23 @@
       <input type="range" id="vol" min="0" max="100" value="20" aria-label="Output volume">
       <span class="val" id="volVal">20%</span>
     </div>
+  </div>
+
+  <!-- auto-stop timer -->
+  <div class="row">
+    <p class="row-label">Auto-stop timer</p>
+    <select id="timer" class="preset-select" aria-label="Auto-stop timer">
+      <option value="0" selected>Off — play until I stop it</option>
+      <option value="5">5 minutes</option>
+      <option value="10">10 minutes</option>
+      <option value="15">15 minutes</option>
+      <option value="20">20 minutes</option>
+      <option value="30">30 minutes</option>
+      <option value="45">45 minutes</option>
+      <option value="60">60 minutes</option>
+      <option value="90">90 minutes</option>
+    </select>
+    <p class="timer-line hidden" id="timerLine">Auto-stops in <span id="timerLeft">0:00</span></p>
   </div>
 
   <!-- waveform -->
@@ -375,11 +398,12 @@
   const state = {
     playing:false, mode:'independent', waveform:'sine',
     freqL:200, freqR:210, base:200, beat:10,
-    volume:0.20, muteL:false, muteR:false
+    volume:0.20, muteL:false, muteR:false, timerMin:0
   };
 
   // ----- Web Audio graph (built on first Play) -----
   let actx=null, oscL=null, oscR=null, gL=null, gR=null, panL=null, panR=null, master=null, suspendTimer=null;
+  let timerEnd=0, timerTick=null;
 
   function buildAudio(){
     actx = new (window.AudioContext||window.webkitAudioContext)();
@@ -422,14 +446,39 @@
     state.playing=true;
     rampMaster(state.volume);
     setPlayUI();
+    startTimer();
   }
   function stop(){
     state.playing=false;
+    cancelTimer();
     if(actx){
       rampMaster(0);
       suspendTimer=setTimeout(()=>{ if(actx && !state.playing) actx.suspend(); }, 140);
     }
     setPlayUI();
+  }
+
+  // ----- auto-stop timer -----
+  function fmtClock(ms){
+    const s = Math.max(0, Math.round(ms/1000));
+    return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  }
+  function startTimer(){
+    clearInterval(timerTick); timerTick=null;
+    if(state.timerMin<=0){ timerLine.classList.add('hidden'); return; }
+    timerEnd = performance.now() + state.timerMin*60000;
+    updateTimer();
+    timerLine.classList.remove('hidden');
+    timerTick = setInterval(updateTimer, 250);
+  }
+  function updateTimer(){
+    const left = timerEnd - performance.now();
+    if(left<=0){ timerLeft.textContent='0:00'; stop(); return; }
+    timerLeft.textContent = fmtClock(left);
+  }
+  function cancelTimer(){
+    clearInterval(timerTick); timerTick=null;
+    timerLine.classList.add('hidden');
   }
 
   // ----- derive frequencies from mode -----
@@ -455,6 +504,7 @@
   const readL=$('readL'), readR=$('readR'), beatVal=$('beatVal'), beatline=$('beatline');
   const chipL=$('chipL'), chipR=$('chipR'), muteLb=$('muteL'), muteRb=$('muteR');
   const baseEcho=$('baseEcho'), beatEcho=$('beatEcho'), timebase=$('timebase'), presetSel=$('preset');
+  const timerSel=$('timer'), timerLine=$('timerLine'), timerLeft=$('timerLeft');
 
   function setPlayUI(){
     playBtn.setAttribute('aria-pressed', String(state.playing));
@@ -480,6 +530,10 @@
     state.volume = vol.value/100;
     volVal.textContent = vol.value+'%';
     if(actx && state.playing) master.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
+  });
+  timerSel.addEventListener('change', ()=>{
+    state.timerMin = parseInt(timerSel.value,10) || 0;
+    if(state.playing){ state.timerMin>0 ? startTimer() : cancelTimer(); }  // recompute or cancel mid-play
   });
 
   // ---- waveform ----
